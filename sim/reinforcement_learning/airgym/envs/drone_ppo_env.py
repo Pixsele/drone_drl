@@ -1,3 +1,5 @@
+import cv2
+
 import sim.setup_path
 import sim.cosysairsim as airsim
 import numpy as np
@@ -14,6 +16,8 @@ class AirSimDronePPOEnv(AirSimEnv):
         super().__init__(image_shape)
         self.step_length = step_length
         self.image_shape = image_shape
+
+        self.step_count = 0
 
         self.state = {
             "position": np.zeros(3),
@@ -33,8 +37,18 @@ class AirSimDronePPOEnv(AirSimEnv):
         self._setup_flight()
 
         self.image_request = airsim.ImageRequest(
-            3, airsim.ImageType.DepthPerspective, True, False
+            0, airsim.ImageType.DepthPerspective, True, False
         )
+
+        self.params_reward = {
+            "dist_reward": -0.01,
+            "dir_to_target_reward": 0.3,
+            "lateral_speed_reward": 0.015,
+            "diff_dist_reward": 1.5,
+            "diff_dist_not_fine": 0.02,
+            "collision_fine": 20.0,
+            "target_reward": 30.0,
+        }
 
     def __del__(self):
         self.drone.reset()
@@ -62,6 +76,7 @@ class AirSimDronePPOEnv(AirSimEnv):
     def _get_obs(self):
         responses = self.drone.simGetImages([self.image_request])
         image = self.transform_obs(responses)
+
         self.drone_state = self.drone.getMultirotorState()
 
         self.state["prev_position"] = self.state["position"]
@@ -74,9 +89,9 @@ class AirSimDronePPOEnv(AirSimEnv):
         return image
 
     def _do_action(self, action):
-        vx = float(action[0]) * 3
-        vy = float(action[1]) * 3
-        vz = float(action[2]) * 2
+        vx = float(action[0]) * 2.5
+        vy = float(action[1]) * 2.5
+        vz = float(action[2]) * 1
 
         self.drone.moveByVelocityAsync(
             vx,
@@ -87,15 +102,15 @@ class AirSimDronePPOEnv(AirSimEnv):
 
     def _compute_reward(self):
         reward = 0.0
-        target = np.array([15.0, 0.0, -5.0])
+        target = np.array([100.0, 0.0, -5.0])
 
         pos = np.array([self.state["position"].x_val,
                         self.state["position"].y_val,
                         self.state["position"].z_val])
 
         last_pos = np.array([self.state["prev_position"].x_val,
-                             self.state["prev_posiiton"].y_val,
-                             self.state["prev_posiiton"].z_val])
+                             self.state["prev_position"].y_val,
+                             self.state["prev_position"].z_val])
 
         x,y,z  = pos
 
@@ -104,38 +119,40 @@ class AirSimDronePPOEnv(AirSimEnv):
                         self.state["velocity"].z_val])
 
         dist = np.linalg.norm(target - pos)
-        last_dist = np.linalg.norm(last_pos - pos)
+        last_dist = np.linalg.norm(target - last_pos)
         speed = np.linalg.norm(vel)
 
-        reward += -0.08 * dist
+        reward += self.params_reward["dist_reward"] * dist
 
         direction_to_target = target - pos
         direction_to_target /= (np.linalg.norm(direction_to_target) + 1e-6)
         forward_component = np.dot(vel, direction_to_target)
-        reward += 0.6 * forward_component
+        reward += self.params_reward["dir_to_target_reward"] * forward_component
 
         lateral_speed = np.linalg.norm(vel - forward_component * direction_to_target)
-        reward -= 0.2 * lateral_speed
+        reward -= self.params_reward["lateral_speed_reward"] * lateral_speed
 
-        alignment = np.dot(vel / (speed + 1e-6), direction_to_target)
-        reward += 0.5 * alignment
+        # alignment = np.dot(vel / (speed + 1e-6), direction_to_target)
+        # reward += 0.5 * alignment
 
         if dist < last_dist:
-            reward += 0.02
+            reward += (last_dist - dist) * self.params_reward["diff_dist_reward"]
 
-        if abs(dist - last_dist) < 0.01:
-            reward -= 0.02
+        if abs(dist - last_dist) < 0.005:
+            reward -= self.params_reward["diff_dist_not_fine"]
 
         done = False
         if self.state["collision"]:
-            reward -= 25.0
+            # if self.step_count < 20:
+            #     reward -= 300
+            reward -= self.params_reward["collision_fine"]
             done = True
-        if dist < 1.8:
-            reward += 35.0
+        if dist < 10:
+            reward += self.params_reward["target_reward"]
             done = True
 
-        if z > -0.3:
-            reward -= 5 * abs(1 - z)
+        # if z > -0.5:
+        #     reward -= 0.05 * abs(z + 5)
 
         return reward, done
 
@@ -143,6 +160,7 @@ class AirSimDronePPOEnv(AirSimEnv):
         self._do_action(action)
         obs = self._get_obs()
         reward, done = self._compute_reward()
+        self.step_count += 1
 
         terminated = done
         truncated = False
@@ -153,6 +171,7 @@ class AirSimDronePPOEnv(AirSimEnv):
         super().reset(seed=seed, options=options)
 
         self._setup_flight()
+        self.step_count = 0
         obs = self._get_obs()
 
         return obs, {}
