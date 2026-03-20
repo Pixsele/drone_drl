@@ -4,11 +4,12 @@ import time
 import shutil
 from datetime import datetime
 
+import numpy as np
 from stable_baselines3 import PPO
 from stable_baselines3.common.logger import configure
 from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.vec_env import SubprocVecEnv, VecTransposeImage, DummyVecEnv
-from stable_baselines3.common.callbacks import EvalCallback
+from stable_baselines3.common.callbacks import EvalCallback, BaseCallback
 from stable_baselines3.common.env_checker import check_env
 import gymnasium as gym
 from torch.utils.tensorboard import SummaryWriter
@@ -16,8 +17,45 @@ from torch.utils.tensorboard import SummaryWriter
 import sim.reinforcement_learning.airgym
 from augmentation_obs import RandomShiftWrapper, SaltPepperWrapper
 
+class MetricsCallback(BaseCallback):
+    def __init__(self, verbose=0):
+        super().__init__(verbose)
+        self.episode_metrics = []
+
+    def _on_step(self) -> bool:
+        for info in self.locals["infos"]:
+            if "success" not in info:
+                continue
+
+            self.episode_metrics.append({
+                "success":          float(info.get("success", False)),
+                "collision":        float(info.get("collision", False)),
+                "stall":            float(info.get("stall", False)),
+                "steps_to_goal":    info.get("steps_to_goal", None),
+                "path_efficiency":  info.get("path_efficiency", None),
+            })
+
+            window = self.episode_metrics[-20:]
+
+            self.logger.record("metrics/success_rate",
+                sum(m["success"] for m in window) / len(window))
+            self.logger.record("metrics/collision_rate",
+                sum(m["collision"] for m in window) / len(window))
+            self.logger.record("metrics/stall_rate",
+                sum(m["stall"] for m in window) / len(window))
+
+            steps = [m["steps_to_goal"] for m in window if m["steps_to_goal"]]
+            if steps:
+                self.logger.record("metrics/steps_to_goal", np.mean(steps))
+
+            eff = [m["path_efficiency"] for m in window if m["path_efficiency"]]
+            if eff:
+                self.logger.record("metrics/path_efficiency", np.mean(eff))
+
+        return True
+
 ppo_params = {
-    "total_timesteps": 50_000,
+    "total_timesteps": 100_000,
     "step_length": 0.25,
     "learning_rate": 3e-4,
     "batch_size": 256,
@@ -95,10 +133,12 @@ if __name__ == "__main__":
         eval_freq=ppo_params["n_steps"],
     )
 
+    metrics_callback = MetricsCallback()
+
     model.set_logger(new_logger)
 
     try:
-        model.learn(total_timesteps=ppo_params["total_timesteps"], callback=eval_callback)
+        model.learn(total_timesteps=ppo_params["total_timesteps"], callback=[eval_callback,metrics_callback])
         model.save(f"./models/{run_name}/model_final")
     finally:
         all_params = {**env_params, **ppo_params}
@@ -113,3 +153,4 @@ if __name__ == "__main__":
             shutil.rmtree(subdir)
 
         model.save(f"./models/{run_name}/model_interrupted")
+

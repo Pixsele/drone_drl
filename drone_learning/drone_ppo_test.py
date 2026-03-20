@@ -9,13 +9,13 @@ from sim.reinforcement_learning.airgym.envs import AirSimDronePPOEnv
 env = AirSimDronePPOEnv(
     ip_address="127.0.0.1",
     step_length=0.2,
-    image_shape=(84, 84, 1)
+    image_shape=(128, 128, 1)
 )
 
 env = RandomShiftWrapper(env)
 # env = SaltPepperWrapper(env, 0.01)
 
-model = PPO.load("best_model/best_model_ppo.zip")
+model = PPO.load("models/PPO_clear_20_03_2026__20-07-39/best_model")
 
 obs, _ = env.reset()
 
