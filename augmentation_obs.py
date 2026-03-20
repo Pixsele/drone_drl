@@ -2,7 +2,7 @@ import numpy as np
 import gymnasium as gym
 
 class RandomShiftWrapper(gym.ObservationWrapper):
-    def __init__(self, env, pad : int = 4):
+    def __init__(self, env, pad : int = 6):
         super().__init__(env)
         self.pad = pad
 

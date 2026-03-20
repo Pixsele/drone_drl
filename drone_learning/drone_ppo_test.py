@@ -13,7 +13,7 @@ env = AirSimDronePPOEnv(
 )
 
 env = RandomShiftWrapper(env)
-env = SaltPepperWrapper(env, 0.01)
+# env = SaltPepperWrapper(env, 0.01)
 
 model = PPO.load("best_model/best_model_ppo.zip")
 
@@ -24,7 +24,7 @@ while True:
 
     obs, reward, terminated, truncated, info = env.step(action)
 
-    cv2.imwrite(f"images/obs_{time.time()}.jpg", obs)
+    cv2.imwrite(f"images/obs_shift_{time.time()}.jpg", obs)
     cv2.waitKey(0)
 
     print("reward:", reward)
