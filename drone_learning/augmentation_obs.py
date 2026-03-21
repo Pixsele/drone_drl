@@ -1,3 +1,5 @@
+import random
+
 import numpy as np
 import gymnasium as gym
 
@@ -34,6 +36,26 @@ class SaltPepperWrapper(gym.ObservationWrapper):
 
         pepper_mask = np.random.random(obs.shape[:2]) < self.prob / 2
         obs[pepper_mask] = 0.0
+
+        return obs
+
+
+class CutWrapper(gym.ObservationWrapper):
+    def __init__(self, env, max_size: int = 5, max_cut_count: int = 2):
+        super().__init__(env)
+        self.max_size = max_size
+        self.max_cut_count = max_cut_count
+
+    def observation(self, obs):
+        obs = obs.copy()
+
+        h, w, c = obs.shape
+
+        cords = random.choices(obs.shape[:2], k=self.max_cut_count)
+
+        for dot in cords:
+            size = random.randint(1, self.max_size)
+            obs[dot:(dot + size) % h, dot:(dot + size) % w,:] = 0.0
 
         return obs
 

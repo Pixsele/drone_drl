@@ -76,6 +76,7 @@ class AirSimDronePPOEnv(AirSimEnv):
 
         self.drone.takeoffAsync().join()
 
+
     def transform_obs(self, responses):
         img1d = np.array(responses[0].image_data_float, dtype=np.float32)
         img1d = 255 / np.maximum(np.ones(img1d.size), img1d)
@@ -233,6 +234,7 @@ class AirSimDronePPOEnv(AirSimEnv):
         super().reset(seed=seed, options=options)
 
         self._setup_flight()
+        self.step_count = 0
         obs = self._get_obs()
 
         self.step_count = 0
@@ -240,4 +242,3 @@ class AirSimDronePPOEnv(AirSimEnv):
         self.stall_counter = 0
 
         return obs, {}
-
