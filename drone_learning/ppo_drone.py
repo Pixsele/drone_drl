@@ -15,96 +15,69 @@ import gymnasium as gym
 from torch.utils.tensorboard import SummaryWriter
 
 import sim.reinforcement_learning.airgym
-from augmentation_obs import RandomShiftWrapper, SaltPepperWrapper
+from augmentation_obs import RandomShiftWrapper, SaltPepperWrapper, CutWrapper
+from drone_learning.log_helpers import MetricsCallback, to_hparam
 
-class MetricsCallback(BaseCallback):
-    def __init__(self, verbose=0):
-        super().__init__(verbose)
-        self.episode_metrics = []
-
-    def _on_step(self) -> bool:
-        for info in self.locals["infos"]:
-            if "success" not in info:
-                continue
-
-            self.episode_metrics.append({
-                "success":          float(info.get("success", False)),
-                "collision":        float(info.get("collision", False)),
-                "stall":            float(info.get("stall", False)),
-                "steps_to_goal":    info.get("steps_to_goal", None),
-                "path_efficiency":  info.get("path_efficiency", None),
-            })
-
-            window = self.episode_metrics[-20:]
-
-            self.logger.record("metrics/success_rate",
-                sum(m["success"] for m in window) / len(window))
-            self.logger.record("metrics/collision_rate",
-                sum(m["collision"] for m in window) / len(window))
-            self.logger.record("metrics/stall_rate",
-                sum(m["stall"] for m in window) / len(window))
-
-            steps = [m["steps_to_goal"] for m in window if m["steps_to_goal"]]
-            if steps:
-                self.logger.record("metrics/steps_to_goal", np.mean(steps))
-
-            eff = [m["path_efficiency"] for m in window if m["path_efficiency"]]
-            if eff:
-                self.logger.record("metrics/path_efficiency", np.mean(eff))
-
-        return True
+n_env = 2
 
 ppo_params = {
-    "total_timesteps": 100_000,
-    "step_length": 0.25,
-    "learning_rate": 3e-4,
-    "batch_size": 256,
-    "n_steps": 2048,
-    "n_epochs": 10,
-    "gamma": 0.99,
-    "gae_lambda": 0.95,
-    "clip_range": 0.2,
-    "ent_coef": 0.01,
-    "vf_coef": 0.5,
-    "max_grad_norm": 0.5,
-    "image_shape": (128, 128, 1)
+    "total_timesteps": 100_000,         # кол-во шагов
+    "step_length": 0.25,                # длина шага агента
+    "learning_rate": 3e-4,              # скорость обучения
+    "batch_size": 256,                  # размер батча
+    "n_steps": 2048,                    # шагов на обновление
+    "n_epochs": 10,                     # эпох на обновление
+    "gamma": 0.99,                      # коэф. дисконтирования
+    "gae_lambda": 0.95,                 # lambda
+    "clip_range": 0.2,                  # клиппинг PPO
+    "ent_coef": 0.01,                   # коэф. энтропии
+    "vf_coef": 0.5,                     # коэф. функции ценности
+    "max_grad_norm": 0.5,               # макс. норма градиента
+    "image_shape": (128, 128, 1)        # размер входного изображения
 }
 
-def to_hparam(v):
-    if isinstance(v, tuple):
-        return str(v)
-    if isinstance(v, bool):
-        return v
-    if hasattr(v, '__float__'):
-        return float(v)
-    return str(v)
+wrapper_params = {
+    "pad_shift": 6,                     # размер отступа
+    "salt_pepper": 0.01,                # коэф. закрашенных пикселей
+    "cut_size": 15,                     # макс. размер вырезки
+    "cut_count": 3                      # кол-во вырезок
+}
 
-def make_env():
+def make_env(drone_id):
     env_new = gym.make("airsim-drone-ppo-v0",
-                   ip_address="127.0.0.1",
-                   step_length=ppo_params["step_length"],
-                   image_shape=ppo_params["image_shape"],)
-    # env_new = RandomShiftWrapper(env_new)
-    # env_new = SaltPepperWrapper(env_new, 0.01)
+                       ip_address="127.0.0.1",
+                       step_length=ppo_params["step_length"],
+                       image_shape=ppo_params["image_shape"],
+                       drone_id=drone_id,)
+
+    env_new = RandomShiftWrapper(env_new, wrapper_params["pad_shift"])
+    env_new = SaltPepperWrapper(env_new, wrapper_params["salt_pepper"])
+    env_new = CutWrapper(env_new, wrapper_params["cut_size"], wrapper_params["cut_count"])
+
     return env_new
 
 if __name__ == "__main__":
-    run_name = f"PPO_clear_{datetime.now().strftime('%d_%m_%Y__%H-%M-%S')}"
+    run_name = f"PPO_test_{datetime.now().strftime('%d_%m_%Y__%H-%M-%S')}"
     log_dir = f"./tb_logs/{run_name}"
     new_logger = configure(log_dir, ["stdout", "tensorboard"])
 
     os.makedirs(f"./models/{run_name}", exist_ok=True)
 
-    check_env(make_env(), warn=True)
-
     # env = SubprocVecEnv([lambda: make_env() for _ in range(1)])
-    env = DummyVecEnv([lambda: make_env()])
+    # env = DummyVecEnv([
+    #     lambda i=i: make_env(i) for i in range(n_env)
+    # ])
+
+    env = SubprocVecEnv([
+        lambda i=i: make_env(i) for i in range(n_env)
+    ])
 
     env = VecTransposeImage(env)
 
-    eval_env = VecTransposeImage(DummyVecEnv([lambda: Monitor(make_env())]))
+    eval_env = VecTransposeImage(DummyVecEnv([lambda: Monitor(make_env(n_env))]))
 
-    env_params = env.envs[0].unwrapped.params
+    # TODO
+    env_params = {}
 
 
     model = PPO(
@@ -141,7 +114,7 @@ if __name__ == "__main__":
         model.learn(total_timesteps=ppo_params["total_timesteps"], callback=[eval_callback,metrics_callback])
         model.save(f"./models/{run_name}/model_final")
     finally:
-        all_params = {**env_params, **ppo_params}
+        all_params = {**env_params, **ppo_params, **wrapper_params}
         all_params_clear = {k: to_hparam(v) for k, v in all_params.items()}
         writer = SummaryWriter(log_dir, filename_suffix=".hparams")
         writer.add_hparams(hparam_dict=all_params_clear, metric_dict={})
@@ -153,4 +126,3 @@ if __name__ == "__main__":
             shutil.rmtree(subdir)
 
         model.save(f"./models/{run_name}/model_interrupted")
-

@@ -13,13 +13,16 @@ from gymnasium import spaces
 from sim.reinforcement_learning.airgym.envs.airsim_env import AirSimEnv
 
 class AirSimDronePPOEnv(AirSimEnv):
-    def __init__(self, ip_address, step_length, image_shape):
+    def __init__(self, ip_address, step_length, image_shape, drone_id=0):
         super().__init__(image_shape)
+
         self.step_length = step_length
         self.image_shape = image_shape
 
         self.step_count = 0
         self.trajectory_length = 0.0
+        self.stall_counter = 0
+
 
         self.state = {
             "position": np.zeros(3),
@@ -27,7 +30,14 @@ class AirSimDronePPOEnv(AirSimEnv):
             "prev_position": np.zeros(3),
         }
 
-        self.drone = airsim.MultirotorClient(ip=ip_address)
+        if drone_id == 0:
+            self.drone_name = "SimpleFlight"
+        else:
+            self.drone_name = f"Drone{drone_id}"
+
+        self.spawn_pose = airsim.Vector3r(0, 1.5 * drone_id, 0)
+
+        self.client = airsim.MultirotorClient(ip=ip_address)
 
         self.action_space = spaces.Box(
             low=-1.0,
@@ -36,71 +46,100 @@ class AirSimDronePPOEnv(AirSimEnv):
             dtype=np.float32
         )
 
+        self._add_drone()
         self._setup_flight()
 
-        self.image_request = airsim.ImageRequest(
-            0, airsim.ImageType.DepthPerspective, True, False
-        )
+        if self.image_shape[2] == 1:
+            self.image_request = airsim.ImageRequest(
+                0, airsim.ImageType.DepthPerspective, True, False
+            )
+
+        if self.image_shape[2] == 3:
+            self.image_request = airsim.ImageRequest(
+                0, airsim.ImageType.Scene, False, False
+            )
+
 
         self.params = {
-            "target": (100.0,0.0,-5.0),
-            "dist_reward": -0.01,
-            "dir_to_target_reward": 0.3,
-            "lateral_speed_reward": 0.015,
-            "diff_dist_reward": 1.5,
-            "diff_dist_not_fine": 0.02,
-            "collision_fine": 20.0,
-            "target_reward": 30.0,
-            "vx" : 2.5,
-            "vy" : 2.5,
-            "vz" : 1.0,
-            "max_steps": 500,        # максимум шагов за эпизод
-            "stall_speed": 0.05,     # ниже этого считается зависанием
-            "stall_steps": 30,
-            "max_step_fine":5.0,
-            "stall_fine": 10.0
+            "target": (100.0,0.0,-5.0),         # цель
+            "dist_reward": -0.01,               # коэф. штраф за дистанцию за шаг
+            "dir_to_target_reward": 0.3,        # коэф. награда за движение в направлении к цели
+            "lateral_speed_reward": 0.015,      # коэф. штрафа за боковую скорость
+            "diff_dist_reward": 1.5,            # коэф. награды за движение
+            "diff_dist_not_fine": 0.02,         # штраф за зависание
+            "collision_fine": 20.0,             # штраф за столкновение
+            "target_reward": 30.0,              # награда за достижение цели
+            "vx" : 2.5,                         #
+            "vy" : 2.5,                         #
+            "vz" : 1.0,                         # 
+            "max_steps": 500,                   # максимум шагов за эпизод
+            "stall_speed": 0.05,                # ниже этого считается зависанием
+            "stall_steps": 30,                  # шагов на зависание для завершения эпизода
+            "max_step_fine":5.0,                # штраф за большое кол-во шагов
+            "stall_fine": 10.0                  # штраф за полное зависание
         }
 
-        self.stall_counter = 0
 
         target = np.array(self.params["target"])
         self.optimal_distance = np.linalg.norm(target)
 
     def __del__(self):
-        self.drone.reset()
+        self.client.reset()
+
+    def _add_drone(self):
+        if self.drone_name == "SimpleFlight":
+            return
+
+        if self.drone_name in self.client.listVehicles():
+            return
+        self.client.simAddVehicle(self.drone_name, "simpleflight", airsim.Pose(self.spawn_pose))
 
     def _setup_flight(self):
-        self.drone.reset()
-        self.drone.enableApiControl(True)
-        self.drone.armDisarm(True)
-
-        self.drone.takeoffAsync().join()
-
+        self.client.enableApiControl(True, self.drone_name)
+        self.client.armDisarm(True, self.drone_name)
+        self.client.takeoffAsync(vehicle_name=self.drone_name).join()
 
     def transform_obs(self, responses):
-        img1d = np.array(responses[0].image_data_float, dtype=np.float32)
-        img1d = 255 / np.maximum(np.ones(img1d.size), img1d)
-        img2d = np.reshape(img1d, (responses[0].height, responses[0].width))
-
-        from PIL import Image
-
+        response = responses[0]
         h, w, c = self.image_shape
-        image = Image.fromarray(img2d)
-        im_final = np.array(image.resize((w, h)).convert("L"))
 
-        return im_final.reshape(self.image_shape)
+        if self.image_shape[2] == 1:
+            img1d = np.array(response.image_data_float, dtype=np.float32)
+
+            img1d = 255 / np.maximum(np.ones(img1d.size), img1d)
+            img2d = np.reshape(img1d, (response.height, response.width))
+
+            from PIL import Image
+            image = Image.fromarray(img2d)
+            image = image.resize((w, h)).convert("L")
+
+            img = np.array(image, dtype=np.uint8)
+            return img.reshape(h, w, 1)
+
+        if self.image_shape[2] == 3:
+            img1d = np.frombuffer(response.image_data_uint8, dtype=np.uint8)
+
+            img_rgb = img1d.reshape(response.height, response.width, 3)
+
+            from PIL import Image
+            image = Image.fromarray(img_rgb)
+            image = image.resize((w, h))
+
+            img = np.array(image, dtype=np.uint8)
+            return img.reshape(h, w, 3)
+        return None
 
     def _get_obs(self):
-        responses = self.drone.simGetImages([self.image_request])
+        responses = self.client.simGetImages([self.image_request], vehicle_name=self.drone_name)
         image = self.transform_obs(responses)
 
-        self.drone_state = self.drone.getMultirotorState()
+        self.drone_state = self.client.getMultirotorState(vehicle_name=self.drone_name)
 
         self.state["prev_position"] = self.state["position"]
         self.state["position"] = self.drone_state.kinematics_estimated.position
         self.state["velocity"] = self.drone_state.kinematics_estimated.linear_velocity
 
-        collision = self.drone.simGetCollisionInfo().has_collided
+        collision = self.client.simGetCollisionInfo(vehicle_name=self.drone_name).has_collided
         self.state["collision"] = collision
 
         return image
@@ -110,11 +149,12 @@ class AirSimDronePPOEnv(AirSimEnv):
         vy = float(action[1]) * self.params["vy"]
         vz = float(action[2]) * self.params["vz"]
 
-        self.drone.moveByVelocityAsync(
+        self.client.moveByVelocityAsync(
             vx,
             vy,
             vz,
-            0.2
+            0.2,
+            vehicle_name=self.drone_name
         ).join()
 
     def _compute_reward(self):
@@ -233,12 +273,16 @@ class AirSimDronePPOEnv(AirSimEnv):
     def reset(self, *, seed=None, options=None):
         super().reset(seed=seed, options=options)
 
+        self.client.simSetVehiclePose(
+            airsim.Pose(self.spawn_pose, airsim.Quaternionr()),
+            ignore_collision=True,
+            vehicle_name=self.drone_name
+        )
+
         self._setup_flight()
-        self.step_count = 0
-        obs = self._get_obs()
 
         self.step_count = 0
         self.trajectory_length = 0.0
         self.stall_counter = 0
-
+        obs = self._get_obs()
         return obs, {}

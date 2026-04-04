@@ -48,16 +48,12 @@ class CutWrapper(gym.ObservationWrapper):
 
     def observation(self, obs):
         obs = obs.copy()
-
         h, w, c = obs.shape
 
-        cords = random.choices(obs.shape[:2], k=self.max_cut_count)
-
-        for dot in cords:
+        for _ in range(self.max_cut_count):
             size = random.randint(1, self.max_size)
-            obs[dot:(dot + size) % h, dot:(dot + size) % w,:] = 0.0
+            row  = random.randint(0, h - 1)
+            col  = random.randint(0, w - 1)
+            obs[row:min(row + size, h), col:min(col + size, w), :] = 0.0
 
         return obs
-
-
-

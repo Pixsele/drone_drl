@@ -3,7 +3,7 @@ import time
 import cv2
 from stable_baselines3 import PPO
 
-from drone_learning.augmentation_obs import RandomShiftWrapper, SaltPepperWrapper
+from drone_learning.augmentation_obs import RandomShiftWrapper, SaltPepperWrapper, CutWrapper
 from sim.reinforcement_learning.airgym.envs import AirSimDronePPOEnv
 
 env = AirSimDronePPOEnv(
@@ -12,8 +12,9 @@ env = AirSimDronePPOEnv(
     image_shape=(128, 128, 1)
 )
 
-env = RandomShiftWrapper(env)
-# env = SaltPepperWrapper(env, 0.01)
+env = RandomShiftWrapper(env,6)
+env = SaltPepperWrapper(env, 0.01)
+env = CutWrapper(env,10,3)
 
 model = PPO.load("models/PPO_clear_20_03_2026__20-07-39/best_model")
 
