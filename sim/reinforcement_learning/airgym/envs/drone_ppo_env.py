@@ -1,23 +1,17 @@
-import cv2
-from sympy.physics.vector.printing import params
-
 import sim.setup_path
 import sim.cosysairsim as airsim
 import numpy as np
-import math
-import time
-from argparse import ArgumentParser
 
-import gymnasium as gym
 from gymnasium import spaces
 from sim.reinforcement_learning.airgym.envs.airsim_env import AirSimEnv
 
 class AirSimDronePPOEnv(AirSimEnv):
-    def __init__(self, ip_address, step_length, image_shape, drone_id=0):
+    def __init__(self, ip_address, step_length, image_shape, reward_params ,drone_id=0):
         super().__init__(image_shape)
 
         self.step_length = step_length
         self.image_shape = image_shape
+        self.params = reward_params
 
         self.step_count = 0
         self.trajectory_length = 0.0
@@ -35,7 +29,10 @@ class AirSimDronePPOEnv(AirSimEnv):
         else:
             self.drone_name = f"Drone{drone_id}"
 
-        self.spawn_pose = airsim.Vector3r(0, 1.5 * drone_id, 0)
+        if drone_id == 0:
+            self.spawn_pose = airsim.Vector3r(-2, 0, 0)
+        else:
+            self.spawn_pose = airsim.Vector3r(0, 1 * (drone_id-1), 0)
 
         self.client = airsim.MultirotorClient(ip=ip_address)
 
@@ -58,27 +55,6 @@ class AirSimDronePPOEnv(AirSimEnv):
             self.image_request = airsim.ImageRequest(
                 0, airsim.ImageType.Scene, False, False
             )
-
-
-        self.params = {
-            "target": (100.0,0.0,-5.0),         # цель
-            "dist_reward": -0.01,               # коэф. штраф за дистанцию за шаг
-            "dir_to_target_reward": 0.3,        # коэф. награда за движение в направлении к цели
-            "lateral_speed_reward": 0.015,      # коэф. штрафа за боковую скорость
-            "diff_dist_reward": 1.5,            # коэф. награды за движение
-            "diff_dist_not_fine": 0.02,         # штраф за зависание
-            "collision_fine": 20.0,             # штраф за столкновение
-            "target_reward": 30.0,              # награда за достижение цели
-            "vx" : 2.5,                         #
-            "vy" : 2.5,                         #
-            "vz" : 1.0,                         # 
-            "max_steps": 500,                   # максимум шагов за эпизод
-            "stall_speed": 0.05,                # ниже этого считается зависанием
-            "stall_steps": 30,                  # шагов на зависание для завершения эпизода
-            "max_step_fine":5.0,                # штраф за большое кол-во шагов
-            "stall_fine": 10.0                  # штраф за полное зависание
-        }
-
 
         target = np.array(self.params["target"])
         self.optimal_distance = np.linalg.norm(target)

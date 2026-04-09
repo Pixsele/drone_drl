@@ -1,11 +1,6 @@
 #%matplotlib inline
-import numpy as np
-import pandas as pd
-import h5py
 from matplotlib import use
 use("TkAgg")
-import matplotlib.pyplot as plt
-from PIL import Image, ImageDraw
 import os
 import Cooking
 

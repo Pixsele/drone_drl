@@ -3,7 +3,7 @@ import time
 import cv2
 from stable_baselines3 import PPO
 
-from drone_learning.augmentation_obs import RandomShiftWrapper, SaltPepperWrapper, CutWrapper
+from drone_learning.train.augmentation_obs import RandomShiftWrapper, SaltPepperWrapper, CutWrapper
 from sim.reinforcement_learning.airgym.envs import AirSimDronePPOEnv
 
 env = AirSimDronePPOEnv(

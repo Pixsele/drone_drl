@@ -1,9 +1,7 @@
 import os
-import setup_path 
 import sim.cosysairsim as airsim
 import time
 import numpy as np
-import sys
 
 script_dir = os.path.dirname(__file__)
 

@@ -1,22 +1,18 @@
 import glob
 import os
-import time
 import shutil
 from datetime import datetime
 
-import numpy as np
 from stable_baselines3 import PPO
 from stable_baselines3.common.logger import configure
 from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.vec_env import SubprocVecEnv, VecTransposeImage, DummyVecEnv
-from stable_baselines3.common.callbacks import EvalCallback, BaseCallback
-from stable_baselines3.common.env_checker import check_env
+from stable_baselines3.common.callbacks import EvalCallback
 import gymnasium as gym
 from torch.utils.tensorboard import SummaryWriter
 
-import sim.reinforcement_learning.airgym
 from augmentation_obs import RandomShiftWrapper, SaltPepperWrapper, CutWrapper
-from drone_learning.log_helpers import MetricsCallback, to_hparam
+from drone_learning.train.log_helpers import MetricsCallback, to_hparam
 
 n_env = 2
 
@@ -43,11 +39,31 @@ wrapper_params = {
     "cut_count": 3                      # кол-во вырезок
 }
 
+reward_params = {
+    "target": (100.0, 0.0, -5.0),       # цель
+    "dist_reward": -0.01,               # коэф. штраф за дистанцию за шаг
+    "dir_to_target_reward": 0.3,        # коэф. награда за движение в направлении к цели
+    "lateral_speed_reward": 0.015,      # коэф. штрафа за боковую скорость
+    "diff_dist_reward": 1.5,            # коэф. награды за движение
+    "diff_dist_not_fine": 0.02,         # штраф за зависание
+    "collision_fine": 20.0,             # штраф за столкновение
+    "target_reward": 30.0,              # награда за достижение цели
+    "vx": 2.5,                          #
+    "vy": 2.5,                          #
+    "vz": 1.0,                          #
+    "max_steps": 500,                   # максимум шагов за эпизод
+    "stall_speed": 0.05,                # ниже этого считается зависанием
+    "stall_steps": 30,                  # шагов на зависание для завершения эпизода
+    "max_step_fine": 5.0,               # штраф за большое кол-во шагов
+    "stall_fine": 10.0                  # штраф за полное зависание
+}
+
 def make_env(drone_id):
     env_new = gym.make("airsim-drone-ppo-v0",
                        ip_address="127.0.0.1",
                        step_length=ppo_params["step_length"],
                        image_shape=ppo_params["image_shape"],
+                       reward_params=reward_params,
                        drone_id=drone_id,)
 
     env_new = RandomShiftWrapper(env_new, wrapper_params["pad_shift"])
@@ -60,25 +76,16 @@ if __name__ == "__main__":
     run_name = f"PPO_test_{datetime.now().strftime('%d_%m_%Y__%H-%M-%S')}"
     log_dir = f"./tb_logs/{run_name}"
     new_logger = configure(log_dir, ["stdout", "tensorboard"])
-
     os.makedirs(f"./models/{run_name}", exist_ok=True)
+    metrics_callback = MetricsCallback()
 
-    # env = SubprocVecEnv([lambda: make_env() for _ in range(1)])
-    # env = DummyVecEnv([
-    #     lambda i=i: make_env(i) for i in range(n_env)
-    # ])
+    env = VecTransposeImage(
+        SubprocVecEnv(
+            lambda i=i: make_env(i) for i in range(1, n_env + 1)
+        )
+    )
 
-    env = SubprocVecEnv([
-        lambda i=i: make_env(i) for i in range(n_env)
-    ])
-
-    env = VecTransposeImage(env)
-
-    eval_env = VecTransposeImage(DummyVecEnv([lambda: Monitor(make_env(n_env))]))
-
-    # TODO
-    env_params = {}
-
+    eval_env = VecTransposeImage(DummyVecEnv([lambda: Monitor(make_env(0))]))
 
     model = PPO(
         "CnnPolicy",
@@ -106,15 +113,13 @@ if __name__ == "__main__":
         eval_freq=ppo_params["n_steps"],
     )
 
-    metrics_callback = MetricsCallback()
-
     model.set_logger(new_logger)
 
     try:
         model.learn(total_timesteps=ppo_params["total_timesteps"], callback=[eval_callback,metrics_callback])
         model.save(f"./models/{run_name}/model_final")
     finally:
-        all_params = {**env_params, **ppo_params, **wrapper_params}
+        all_params = {**ppo_params, **ppo_params, **wrapper_params}
         all_params_clear = {k: to_hparam(v) for k, v in all_params.items()}
         writer = SummaryWriter(log_dir, filename_suffix=".hparams")
         writer.add_hparams(hparam_dict=all_params_clear, metric_dict={})

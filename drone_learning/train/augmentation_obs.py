@@ -2,6 +2,8 @@ import random
 
 import numpy as np
 import gymnasium as gym
+from gymnasium import ObservationWrapper
+
 
 class RandomShiftWrapper(gym.ObservationWrapper):
     def __init__(self, env, pad : int = 6):
