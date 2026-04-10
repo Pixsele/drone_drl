@@ -6,12 +6,12 @@ from gymnasium import spaces
 from sim.reinforcement_learning.airgym.envs.airsim_env import AirSimEnv
 
 class AirSimDronePPOEnv(AirSimEnv):
-    def __init__(self, ip_address, step_length, image_shape, reward_params ,drone_id=0):
+    def __init__(self, ip_address, step_length, image_shape, params ,id=0):
         super().__init__(image_shape)
 
         self.step_length = step_length
         self.image_shape = image_shape
-        self.params = reward_params
+        self.params = params
 
         self.step_count = 0
         self.trajectory_length = 0.0
@@ -24,15 +24,15 @@ class AirSimDronePPOEnv(AirSimEnv):
             "prev_position": np.zeros(3),
         }
 
-        if drone_id == 0:
+        if id == 0:
             self.drone_name = "SimpleFlight"
         else:
-            self.drone_name = f"Drone{drone_id}"
+            self.drone_name = f"Drone{id}"
 
-        if drone_id == 0:
-            self.spawn_pose = airsim.Vector3r(-2, 0, 0)
+        if id == 0:
+            self.spawn_pose = airsim.Vector3r(-5, 0, -2)
         else:
-            self.spawn_pose = airsim.Vector3r(0, 1 * (drone_id-1), 0)
+            self.spawn_pose = airsim.Vector3r(0, 1 * (id-3), -2)
 
         self.client = airsim.MultirotorClient(ip=ip_address)
 
@@ -166,9 +166,6 @@ class AirSimDronePPOEnv(AirSimEnv):
 
         lateral_speed = np.linalg.norm(vel - forward_component * direction_to_target)
         reward -= self.params["lateral_speed_reward"] * lateral_speed
-
-        # alignment = np.dot(vel / (speed + 1e-6), direction_to_target)
-        # reward += 0.5 * alignment
 
         if dist < last_dist:
             reward += (last_dist - dist) * self.params["diff_dist_reward"]

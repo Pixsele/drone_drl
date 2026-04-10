@@ -16,4 +16,8 @@ register(
     entry_point="sim.reinforcement_learning.airgym.envs:AirSimDronePPOEnv",
 )
 
+register(
+    id="airsim-car-ppo-v0",
+    entry_point="sim.reinforcement_learning.airgym.envs:AirSimCarPPOEnv",
+)
 __all__ = ['envs']
