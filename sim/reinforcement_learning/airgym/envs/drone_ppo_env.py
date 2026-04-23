@@ -6,7 +6,7 @@ from gymnasium import spaces
 from sim.reinforcement_learning.airgym.envs.airsim_env import AirSimEnv
 
 class AirSimDronePPOEnv(AirSimEnv):
-    def __init__(self, ip_address, step_length, image_shape, params ,id=0):
+    def __init__(self, ip_address, step_length, image_shape, params ,client_id=0):
         super().__init__(image_shape)
 
         self.step_length = step_length
@@ -24,16 +24,16 @@ class AirSimDronePPOEnv(AirSimEnv):
             "prev_position": np.zeros(3),
         }
 
-        if id == 0:
+        if client_id == 0:
             self.drone_name = "SimpleFlight"
         else:
-            self.drone_name = f"Drone{id}"
+            self.drone_name = f"Drone{client_id}"
 
-        if id == 0:
+        if client_id == 0:
             self.spawn_pose = airsim.Vector3r(-5, 0, -2)
         else:
-            self.spawn_pose = airsim.Vector3r(0, 1 * (id-3), -2)
-
+            self.spawn_pose = airsim.Vector3r(0, 5 * -client_id, -2)
+        print(f"client_id: {client_id} - spawn_pose: {self.spawn_pose}")
         self.client = airsim.MultirotorClient(ip=ip_address)
 
         self.action_space = spaces.Box(
@@ -187,7 +187,6 @@ class AirSimDronePPOEnv(AirSimEnv):
         if dist < 2.0:
             reward += self.params["target_reward"]
             done = True
-
             info["success"] = True
             info["collision"] = False
             info["stall"] = False
@@ -199,7 +198,7 @@ class AirSimDronePPOEnv(AirSimEnv):
 
         # if z > -0.5:
         #     reward -= 0.05 * abs(z + 5)
-
+        print(reward)
         return reward, done, info
 
     def _check_stall(self):

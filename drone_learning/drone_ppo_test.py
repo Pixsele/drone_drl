@@ -32,22 +32,22 @@ env = AirSimDronePPOEnv(
     ip_address="127.0.0.1",
     step_length=0.2,
     image_shape=(128, 128, 3),
-    reward_params=reward_params,
+    params=reward_params,
 )
 
-# env = RandomShiftWrapper(env,6)
+# env = RandomShiftWrapper(env,10)
+
+env = RgbToDepthWrapper(env)
 # env = SaltPepperWrapper(env, 0.01)
 # env = CutWrapper(env,10,3)
-# env = GaussianNoiseWrapper(env, 0.05)
+# env = GaussianNoiseWrapper(env, 0.01)
 # env = DepthQuantizationWrapper(env,128)
-# env = DistortionWrapper(env,0.2)
-env = RgbToDepthWrapper(env)
-
+env = DistortionWrapper(env,0.2)
 
 vec_env = DummyVecEnv([lambda: env])
 vec_env = VecTransposeImage(vec_env)
 
-model = PPO.load("train/models/PPO_clear_20_03_2026__20-07-39/best_model")
+model = PPO.load("train/models/PPO_DepthAnythingTest_09_04_2026__17-23-07/best_model")
 
 obs = vec_env.reset()
 
@@ -57,7 +57,7 @@ while True:
     obs, reward, done, info= vec_env.step(action)
 
     depth_img = obs[0].squeeze()
-    cv2.imwrite(f"images/obs_depth_{time.time()}.jpg", depth_img)
+    cv2.imwrite(f"images/test_mix_{time.time()}.jpg", depth_img)
 
     print("reward:", reward[0])
 

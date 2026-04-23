@@ -32,7 +32,6 @@ class RgbToDepthWrapper(gym.ObservationWrapper):
             depth = (depth - depth.min()) / (depth.max() - depth.min() + 1e-8)
             depth = (depth * 255).astype(np.uint8)
             depth = depth[..., None]
-
         return depth
 
 

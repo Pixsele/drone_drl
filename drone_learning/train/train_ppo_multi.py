@@ -11,7 +11,8 @@ from stable_baselines3.common.callbacks import EvalCallback
 import gymnasium as gym
 from torch.utils.tensorboard import SummaryWriter
 
-from augmentation_obs import RandomShiftWrapper, SaltPepperWrapper, CutWrapper, RgbToDepthWrapper
+from augmentation_obs import RandomShiftWrapper, SaltPepperWrapper, CutWrapper, RgbToDepthWrapper, GaussianNoiseWrapper, \
+    DepthQuantizationWrapper, DistortionWrapper
 from drone_learning.train.log_helpers import MetricsCallback, to_hparam
 from sim.reinforcement_learning.airgym.envs import AirSimDronePPOEnv
 from sim.reinforcement_learning.airgym.envs import AirSimCarPPOEnv
@@ -30,14 +31,17 @@ ppo_params = {
     "vf_coef": 0.5,                     # коэф. функции ценности
     "max_grad_norm": 0.5,               # макс. норма градиента
     "image_shape": (128, 128, 1),       # размер входного изображения
-    "n_env": 1,                         # кол-во дронов
+    "n_env": 1,                        # кол-во дронов
 }
 
 wrapper_params = {
     "pad_shift": 6,                     # размер отступа
     "salt_pepper": 0.01,                # коэф. закрашенных пикселей
     "cut_size": 15,                     # макс. размер вырезки
-    "cut_count": 3                      # кол-во вырезок
+    "cut_count": 3,                      # кол-во вырезок
+    "quantize_level": 32,
+    "gaussian": 0.05,
+    "distortion": 0.5,
 }
 
 reward_params = {
@@ -65,16 +69,20 @@ def make_env(drone_id):
                        step_length=ppo_params["step_length"],
                        image_shape=ppo_params["image_shape"],
                        params=reward_params,
-                       id=drone_id)
+                       client_id=drone_id)
 
     # env_new = RandomShiftWrapper(env_new, wrapper_params["pad_shift"])
     # env_new = SaltPepperWrapper(env_new, wrapper_params["salt_pepper"])
     # env_new = CutWrapper(env_new, wrapper_params["cut_size"], wrapper_params["cut_count"])
     # env_new = RgbToDepthWrapper(env_new)
+
+    # env_new = GaussianNoiseWrapper(env_new, wrapper_params["gaussian"]) #первый
+    # env_new = DepthQuantizationWrapper(env_new,wrapper_params["quantize_level"]) #второй
+    env_new = DistortionWrapper(env_new,wrapper_params["distortion"]) #третий
     return env_new
 
 if __name__ == "__main__":
-    run_name = f"PPO__{datetime.now().strftime('%d_%m_%Y__%H-%M-%S')}"
+    run_name = f"PPO_DistortionWrapper_{datetime.now().strftime('%d_%m_%Y__%H-%M-%S')}"
     log_dir = f"./tb_logs/{run_name}"
     new_logger = configure(log_dir, ["stdout", "tensorboard"])
     os.makedirs(f"./models/{run_name}", exist_ok=True)
