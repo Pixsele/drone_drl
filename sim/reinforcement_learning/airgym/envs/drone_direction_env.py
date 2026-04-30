@@ -286,18 +286,48 @@ class AirSimDroneDirectionPPOEnv(AirSimEnv):
 
         self._setup_flight()
 
+        # if self.reset_count < 100:
+        #     self.params["direction"] = [1.0, 0.0, 0.0]
+        #
+        # else:
+        #     if self.reset_count % self.params["direction_rand_frequency"] == 0:
+        #         angle = np.random.uniform(-np.pi / 2, np.pi / 2)
+        #         self.params["direction"] = [
+        #             float(np.cos(angle)),
+        #             float(np.sin(angle)),
+        #             0.0,
+        #         ]
+        #         print(f"Direction: {self.params['direction']}")
+
         if self.reset_count < 100:
             self.params["direction"] = [1.0, 0.0, 0.0]
 
+        elif self.reset_count < 200:
+            angle = np.random.uniform(-np.pi / 6, np.pi / 6)
+            self.params["direction"] = [
+                float(np.cos(angle)),
+                float(np.sin(angle)),
+                0.0,
+            ]
+            print(f"Direction: {self.params['direction']}")
+
+        elif self.reset_count < 400:
+            angle = np.random.uniform(-np.pi / 3, np.pi / 3)
+            self.params["direction"] = [
+                float(np.cos(angle)),
+                float(np.sin(angle)),
+                0.0,
+            ]
+            print(f"Direction: {self.params['direction']}")
+
         else:
-            if self.reset_count % self.params["direction_rand_frequency"] == 0:
-                angle = np.random.uniform(-np.pi / 2, np.pi / 2)
-                self.params["direction"] = [
-                    float(np.cos(angle)),
-                    float(np.sin(angle)),
-                    0.0,
-                ]
-                print(f"Direction: {self.params['direction']}")
+            angle = np.random.uniform(-np.pi / 2, np.pi / 2)
+            self.params["direction"] = [
+                float(np.cos(angle)),
+                float(np.sin(angle)),
+                0.0,
+            ]
+            print(f"Direction: {self.params['direction']}")
 
         self.step_count = 0
         self.trajectory_length = 0.0

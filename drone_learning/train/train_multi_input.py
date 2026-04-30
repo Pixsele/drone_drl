@@ -64,7 +64,7 @@ reward_params = {
     "stall_steps": 20,  # шагов на зависание для завершения эпизода
     "stall_fine": 10.0,  # штраф за полное зависание
 
-    "direction_rand_frequency": 10,
+    # "direction_rand_frequency": 10,
     "altitude_penalty": 1.0
 }
 
