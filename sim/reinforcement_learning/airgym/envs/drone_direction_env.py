@@ -1,3 +1,5 @@
+import cv2
+
 import sim.setup_path
 import sim.cosysairsim as airsim
 import numpy as np
@@ -5,9 +7,13 @@ import numpy as np
 from gymnasium import spaces
 from sim.reinforcement_learning.airgym.envs.airsim_env import AirSimEnv
 
-class AirSimDronePPOEnv(AirSimEnv):
-    def __init__(self, ip_address, step_length, image_shape, params ,client_id=0):
+class AirSimDroneDirectionPPOEnv(AirSimEnv):
+    def __init__(self, ip_address, step_length, image_shape, params, run_name, client_id=0):
         super().__init__(image_shape)
+
+        self.current_step = 0
+        self.reset_count = 0
+        self.run_name = run_name
 
         self.step_length = step_length
         self.image_shape = image_shape
@@ -30,10 +36,15 @@ class AirSimDronePPOEnv(AirSimEnv):
             self.drone_name = f"Drone{client_id}"
 
         if client_id == 0:
-            self.spawn_pose = airsim.Vector3r(-5, 0, -2)
+            vector = np.array([0.0, 0.0, -2])
+            self.spawn_pose = airsim.Vector3r(0.0,0.0,-2.0)
+            self.start_pose = vector
         else:
+            #TODO
             self.spawn_pose = airsim.Vector3r(0, 11 * -client_id, -2)
         print(f"client_id: {client_id} - spawn_pose: {self.spawn_pose}")
+
+
         self.client = airsim.MultirotorClient(ip=ip_address)
 
         self.action_space = spaces.Box(
@@ -42,6 +53,21 @@ class AirSimDronePPOEnv(AirSimEnv):
             shape=(3,),
             dtype=np.float32
         )
+
+        self.observation_space = spaces.Dict({
+            "image": spaces.Box(
+                low=0,
+                high=255,
+                shape=image_shape,
+                dtype=np.uint8
+            ),
+            "direction": spaces.Box(
+                low=-1.0,
+                high=1.0,
+                shape=(3,),
+                dtype=np.float32
+            ),
+        })
 
         self._add_drone()
         self._setup_flight()
@@ -56,8 +82,6 @@ class AirSimDronePPOEnv(AirSimEnv):
                 0, airsim.ImageType.Scene, False, False
             )
 
-        target = np.array(self.params["target"])
-        self.optimal_distance = np.linalg.norm(target)
 
     def __del__(self):
         self.client.reset()
@@ -109,18 +133,23 @@ class AirSimDronePPOEnv(AirSimEnv):
         responses = self.client.simGetImages([self.image_request], vehicle_name=self.drone_name)
         image = self.transform_obs(responses)
 
+        if self.run_name is not None and self.current_step % 1000 == 0:
+            cv2.imwrite(f"./models/{self.run_name}/images/{self.current_step}.jpg", image)
+
+        direction = np.array(self.params["direction"], dtype=np.float32)
+
         self.drone_state = self.client.getMultirotorState(vehicle_name=self.drone_name)
 
         self.state["prev_position"] = self.state["position"]
         self.state["position"] = self.drone_state.kinematics_estimated.position
         self.state["velocity"] = self.drone_state.kinematics_estimated.linear_velocity
 
-        print(f"{self.drone_name} - {self.drone_state.kinematics_estimated.position}")
+        # print(f"{self.drone_name} - {self.drone_state.kinematics_estimated.position}")
 
         collision = self.client.simGetCollisionInfo(vehicle_name=self.drone_name).has_collided
         self.state["collision"] = collision
 
-        return image
+        return {"image": image, "direction": direction}
 
     def _do_action(self, action):
         vx = float(action[0]) * self.params["vx"]
@@ -136,8 +165,8 @@ class AirSimDronePPOEnv(AirSimEnv):
         ).join()
 
     def _compute_reward(self):
-        reward = 0.0
-        target = np.array([self.params["target"][0], self.params["target"][1], self.params["target"][2]])
+        direction = np.array(self.params["direction"], dtype=np.float32)
+        direction = direction / np.linalg.norm(direction)
 
         pos = np.array([self.state["position"].x_val,
                         self.state["position"].y_val,
@@ -151,29 +180,31 @@ class AirSimDronePPOEnv(AirSimEnv):
 
         vel = np.array([self.state["velocity"].x_val,
                         self.state["velocity"].y_val,
-                        self.state["velocity"].z_val])
+                        self.state["velocity"].z_val]
+                       )
 
-        dist = np.linalg.norm(target - pos)
-        last_dist = np.linalg.norm(target - last_pos)
+        reward = 0.0
         speed = np.linalg.norm(vel)
-
         self.trajectory_length += np.linalg.norm(pos - last_pos)
 
-        reward += self.params["dist_reward"] * dist
 
-        direction_to_target = target - pos
-        direction_to_target /= (np.linalg.norm(direction_to_target) + 1e-6)
-        forward_component = np.dot(vel, direction_to_target)
-        reward += self.params["dir_to_target_reward"] * forward_component
+        alignment = np.dot(vel / (speed + 1e-6), direction)
+        reward += self.params["alignment_reward"] * alignment * speed
 
-        lateral_speed = np.linalg.norm(vel - forward_component * direction_to_target)
-        reward -= self.params["lateral_speed_reward"] * lateral_speed
+        if alignment < 0.5:
+            reward -= self.params["wrong_direction_penalty"] * (0.5 - alignment) * speed
 
-        if dist < last_dist:
-            reward += (last_dist - dist) * self.params["diff_dist_reward"]
+        displacement = pos - last_pos
+        progress = np.dot(displacement, direction)
+        reward += self.params["progress_reward"] * progress * speed
 
-        if abs(dist - last_dist) < 0.005:
-            reward -= self.params["diff_dist_not_fine"]
+
+        lateral_speed = np.linalg.norm(vel - np.dot(vel,direction) * direction)
+        reward -= self.params["lateral_penalty"] * lateral_speed
+
+        z_drop = pos[2] - self.start_pos[2]
+        if z_drop > 0.3:
+            reward -= self.params["altitude_penalty"] * z_drop
 
         done = False
         info = {}
@@ -182,24 +213,12 @@ class AirSimDronePPOEnv(AirSimEnv):
             reward -= self.params["collision_fine"]
             done = True
 
-            info["success"] = False
-            info["collision"] = True
-            info["stall"] = False
+            info = {
+                "success": False,
+                "collision": True,
+                "stall": False,
+            }
 
-        if dist < 2.0:
-            reward += self.params["target_reward"]
-            done = True
-            info["success"] = True
-            info["collision"] = False
-            info["stall"] = False
-            info["steps_to_goal"] = self.step_count
-            info["path_efficiency"] = (
-                self.optimal_distance / self.trajectory_length
-                if self.trajectory_length > 0 else 0.0
-            )
-
-        # if z > -0.5:
-        #     reward -= 0.05 * abs(z + 5)
         return reward, done, info
 
     def _check_stall(self):
@@ -212,7 +231,9 @@ class AirSimDronePPOEnv(AirSimEnv):
         self._do_action(action)
         obs = self._get_obs()
         reward, done, info = self._compute_reward()
+
         self.step_count += 1
+        self.current_step += 1
 
         terminated = done
         truncated = False
@@ -223,20 +244,30 @@ class AirSimDronePPOEnv(AirSimEnv):
             self.stall_counter = 0
 
         if not terminated:
+            direction = np.array(self.params["direction"], dtype=np.float32)
+            direction /= (np.linalg.norm(direction) + 1e-6)
+            distance_traveled = np.dot(
+                np.array([self.state["position"].x_val,
+                          self.state["position"].y_val,
+                          self.state["position"].z_val]) - self.start_pos,
+                direction
+            )
+            if distance_traveled > self.params["target_distance"]:
+                reward += self.params["target_reward"]
+                terminated = True
+                info["success"] = True
+                info["collision"] = False
+                info["stall"] = False
+
             if self.step_count >= self.params["max_steps"]:
                 truncated = True
-
-                reward -= self.params["max_step_fine"]
-
                 info["success"] = False
                 info["collision"] = False
                 info["stall"] = False
 
             elif self.stall_counter >= self.params["stall_steps"]:
                 truncated = True
-
                 reward -= self.params["stall_fine"]
-
                 info["success"] = False
                 info["collision"] = False
                 info["stall"] = True
@@ -245,6 +276,7 @@ class AirSimDronePPOEnv(AirSimEnv):
 
     def reset(self, *, seed=None, options=None):
         super().reset(seed=seed, options=options)
+        self.reset_count += 1
 
         self.client.simSetVehiclePose(
             airsim.Pose(self.spawn_pose, airsim.Quaternionr()),
@@ -254,8 +286,27 @@ class AirSimDronePPOEnv(AirSimEnv):
 
         self._setup_flight()
 
+        if self.reset_count < 100:
+            self.params["direction"] = [1.0, 0.0, 0.0]
+
+        else:
+            if self.reset_count % self.params["direction_rand_frequency"] == 0:
+                angle = np.random.uniform(-np.pi / 2, np.pi / 2)
+                self.params["direction"] = [
+                    float(np.cos(angle)),
+                    float(np.sin(angle)),
+                    0.0,
+                ]
+                print(f"Direction: {self.params['direction']}")
+
         self.step_count = 0
         self.trajectory_length = 0.0
         self.stall_counter = 0
         obs = self._get_obs()
+
+        self.start_pos = np.array([
+            self.drone_state.kinematics_estimated.position.x_val,
+            self.drone_state.kinematics_estimated.position.y_val,
+            self.drone_state.kinematics_estimated.position.z_val,
+        ])
         return obs, {}

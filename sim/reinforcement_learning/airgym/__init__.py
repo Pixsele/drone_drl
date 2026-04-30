@@ -20,4 +20,9 @@ register(
     id="airsim-car-ppo-v0",
     entry_point="sim.reinforcement_learning.airgym.envs:AirSimCarPPOEnv",
 )
+
+register(
+    id="airsim-drone-direction-ppo-v0",
+    entry_point="sim.reinforcement_learning.airgym.envs:AirSimDroneDirectionPPOEnv",
+)
 __all__ = ['envs']

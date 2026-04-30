@@ -31,7 +31,7 @@ ppo_params = {
     "vf_coef": 0.5,                     # коэф. функции ценности
     "max_grad_norm": 0.5,               # макс. норма градиента
     "image_shape": (128, 128, 1),       # размер входного изображения
-    "n_env": 3,                        # кол-во дронов
+    "n_env": 0,                        # кол-во дронов
 }
 
 wrapper_params = {
@@ -45,29 +45,38 @@ wrapper_params = {
 }
 
 reward_params = {
-    "direction": (1.0, 0.0, 0.0),  # направление
-    "alignment_reward": 0.5,
-    "progress_reward": 0.4,
-    "lateral_penalty": 0.02,
-    "collision_fine": 20.0,  # штраф за столкновение
+    "direction": [1.0, 0.0, 0.0],  # направление
+
+    "alignment_reward": 1.0,
+    "progress_reward": 2.0,
+    "target_reward": 200.0,
+
+    "lateral_penalty": 0.5,
+    "collision_fine": 100.0,  # штраф за столкновение
+    "wrong_direction_penalty": 1.0,
+
     "vx": 2.5,  #
     "vy": 2.5,  #
     "vz": 1.0,  #
-    "max_steps": 500,  # максимум шагов за эпизод
+
+    "max_steps": 300,  # максимум шагов за эпизод
     "target_distance": 100.0,
-    "target_reward": 30.0,
-    "stall_speed": 0.05,  # ниже этого считается зависанием
     "stall_steps": 20,  # шагов на зависание для завершения эпизода
-    "stall_fine": 10.0  # штраф за полное зависание
+    "stall_fine": 10.0,  # штраф за полное зависание
+
+    "direction_rand_frequency": 10,
+    "altitude_penalty": 1.0
 }
 
-def make_env(drone_id):
+def make_env(drone_id, run_name):
     env_new = gym.make("airsim-drone-direction-ppo-v0",
                        ip_address="127.0.0.1",
                        step_length=ppo_params["step_length"],
                        image_shape=ppo_params["image_shape"],
                        params=reward_params,
-                       client_id=drone_id)
+                       run_name=run_name,
+                       client_id=drone_id
+                       )
 
     # env_new = RandomShiftWrapper(env_new, wrapper_params["pad_shift"])
     # env_new = SaltPepperWrapper(env_new, wrapper_params["salt_pepper"])
@@ -80,17 +89,18 @@ def make_env(drone_id):
     return env_new
 
 if __name__ == "__main__":
-    run_name = f"Test_PPO_DirectionV1_{datetime.now().strftime('%d_%m_%Y__%H-%M-%S')}"
+    run_name = f"Test_PPO_DirectionV2_{datetime.now().strftime('%d_%m_%Y__%H-%M-%S')}"
     log_dir = f"./tb_logs/{run_name}"
     new_logger = configure(log_dir, ["stdout", "tensorboard"])
     os.makedirs(f"./models/{run_name}", exist_ok=True)
+    os.makedirs(f"./models/{run_name}/images", exist_ok=True)
     metrics_callback = MetricsCallback()
 
-    env = VecTransposeImage(
-        SubprocVecEnv(
-            [lambda i=i: make_env(i) for i in range(1, ppo_params["n_env"] + 1)]
-        )
-    )
+    # env = VecTransposeImage(
+    #     SubprocVecEnv(
+    #         [lambda i=i: make_env(i) for i in range(1, ppo_params["n_env"] + 1)]
+    #     )
+    # )
 
     # env = VecTransposeImage(
     #     SubprocVecEnv(
@@ -98,10 +108,14 @@ if __name__ == "__main__":
     #     )
     # )
 
-    eval_env = VecTransposeImage(DummyVecEnv([lambda: Monitor(make_env(0))]))
+    env = SubprocVecEnv(
+        [lambda: make_env(0, run_name)],
+    )
+
+    eval_env = VecTransposeImage(DummyVecEnv([lambda: Monitor(make_env(0, run_name))]))
 
     model = PPO(
-        "CnnPolicy",
+        "MultiInputPolicy",
         env,
         learning_rate=ppo_params["learning_rate"],
         batch_size=ppo_params["batch_size"],
@@ -130,9 +144,6 @@ if __name__ == "__main__":
 
     try:
         model.learn(total_timesteps=ppo_params["total_timesteps"], callback=[eval_callback,metrics_callback])
-
-
-
         model.save(f"./models/{run_name}/model_final")
     finally:
         all_params = {**ppo_params, **ppo_params, **wrapper_params}
@@ -142,7 +153,7 @@ if __name__ == "__main__":
         writer.close()
 
         with open(f"./models/{run_name}/params.json", "w") as fp:
-            json.dump(all_params_clear, fp, indent=4)
+            json.dump(all_params_clear, fp)
 
         for subdir in glob.glob(f"{log_dir}/*/"):
             for f in glob.glob(f"{subdir}events.out.tfevents.*"):
