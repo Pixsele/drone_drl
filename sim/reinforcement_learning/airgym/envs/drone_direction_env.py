@@ -1,4 +1,7 @@
+import time
+
 import cv2
+
 
 import sim.setup_path
 import sim.cosysairsim as airsim
@@ -8,12 +11,14 @@ from gymnasium import spaces
 from sim.reinforcement_learning.airgym.envs.airsim_env import AirSimEnv
 
 class AirSimDroneDirectionPPOEnv(AirSimEnv):
-    def __init__(self, ip_address, step_length, image_shape, params, run_name, client_id=0):
+    def __init__(self, ip_address, step_length, image_shape, params, run_name, eval=False,client_id=0):
         super().__init__(image_shape)
 
+        self.phase_thresholds = [100, 300, 600]
         self.current_step = 0
         self.reset_count = 0
         self.run_name = run_name
+        self.eval = eval
 
         self.step_length = step_length
         self.image_shape = image_shape
@@ -176,48 +181,43 @@ class AirSimDroneDirectionPPOEnv(AirSimEnv):
                              self.state["prev_position"].y_val,
                              self.state["prev_position"].z_val])
 
-        x,y,z  = pos
-
-        vel = np.array([self.state["velocity"].x_val,
-                        self.state["velocity"].y_val,
-                        self.state["velocity"].z_val]
-                       )
-
         reward = 0.0
-        speed = np.linalg.norm(vel)
-        self.trajectory_length += np.linalg.norm(pos - last_pos)
-
-
-        alignment = np.dot(vel / (speed + 1e-6), direction)
-        reward += self.params["alignment_reward"] * alignment * speed
-
-        if alignment < 0.5:
-            reward -= self.params["wrong_direction_penalty"] * (0.5 - alignment) * speed
 
         displacement = pos - last_pos
         progress = np.dot(displacement, direction)
-        reward += self.params["progress_reward"] * progress * speed
+        r_progress = self.params["progress_reward"] * progress
 
-
-        lateral_speed = np.linalg.norm(vel - np.dot(vel,direction) * direction)
-        reward -= self.params["lateral_penalty"] * lateral_speed
+        lateral = displacement - np.dot(displacement, direction) * direction
+        lateral_dist = np.linalg.norm(lateral)
+        r_lateral = -self.params["lateral_penalty"] * lateral_dist
 
         z_drop = pos[2] - self.start_pos[2]
-        if z_drop > 0.3:
-            reward -= self.params["altitude_penalty"] * z_drop
+        r_altitude = 0.0
+        if z_drop > 1.0:
+            r_altitude = -self.params["altitude_penalty"] * z_drop
+
+        reward += r_progress + r_lateral + r_altitude
 
         done = False
         info = {}
+        r_collision = 0.0
 
         if self.state["collision"]:
-            reward -= self.params["collision_fine"]
+            r_collision = -self.params["collision_fine"]
+            reward += r_collision
             done = True
+            info = {"success": False, "collision": True, "stall": False}
 
-            info = {
-                "success": False,
-                "collision": True,
-                "stall": False,
-            }
+        # print(
+        #     f"step={self.step_count:3d} | "
+        #     f"progress={r_progress:+.3f} | "
+        #     f"lateral={r_lateral:+.3f} | "
+        #     f"altitude={r_altitude:+.3f} | "
+        #     f"collision={r_collision:+.3f} | "
+        #     f"total={reward:+.3f} | "
+        #     f"dir={self.params['direction']} | "
+        #     f"pos=[{pos[0]:.1f},{pos[1]:.1f},{pos[2]:.1f}]"
+        # )
 
         return reward, done, info
 
@@ -228,8 +228,18 @@ class AirSimDroneDirectionPPOEnv(AirSimEnv):
         return bool(np.linalg.norm(vel) < 0.05)
 
     def step(self, action):
+        pose = self.client.simGetObjectPose("BP_qr_C_3")
+        print(pose)
+
+        pose = self.client.simGetObjectPose("BP_qr_C_4")
+        print(pose)
+
+        # objects = self.client.simListSceneObjects(".*")
+        # print([o for o in objects if "qr" in o.lower()])
+
         self._do_action(action)
         obs = self._get_obs()
+
         reward, done, info = self._compute_reward()
 
         self.step_count += 1
@@ -278,56 +288,36 @@ class AirSimDroneDirectionPPOEnv(AirSimEnv):
         super().reset(seed=seed, options=options)
         self.reset_count += 1
 
+        self.client.reset()
+
         self.client.simSetVehiclePose(
             airsim.Pose(self.spawn_pose, airsim.Quaternionr()),
             ignore_collision=True,
             vehicle_name=self.drone_name
         )
 
+        time.sleep(0.2)
+
         self._setup_flight()
 
-        # if self.reset_count < 100:
-        #     self.params["direction"] = [1.0, 0.0, 0.0]
-        #
+
+        r = self.reset_count
+
+        # if self.eval:
+        #     angle = np.random.uniform(-np.pi / 2, np.pi / 2)
         # else:
-        #     if self.reset_count % self.params["direction_rand_frequency"] == 0:
+        #     if r < 50:
+        #         angle = 0.0
+        #     elif r < 150:
+        #         angle = np.random.uniform(-np.pi / 6, np.pi / 6)
+        #     elif r < 350:
+        #         angle = np.random.uniform(-np.pi / 3, np.pi / 3)
+        #     else:
         #         angle = np.random.uniform(-np.pi / 2, np.pi / 2)
-        #         self.params["direction"] = [
-        #             float(np.cos(angle)),
-        #             float(np.sin(angle)),
-        #             0.0,
-        #         ]
-        #         print(f"Direction: {self.params['direction']}")
-
-        if self.reset_count < 150:
-            self.params["direction"] = [1.0, 0.0, 0.0]
-
-        # elif self.reset_count < 250:
-        #     angle = np.random.uniform(-np.pi / 6, np.pi / 6)
-        #     self.params["direction"] = [
-        #         float(np.cos(angle)),
-        #         float(np.sin(angle)),
-        #         0.0,
-        #     ]
-        #     print(f"Direction: {self.params['direction']}")
         #
-        # elif self.reset_count < 400:
-        #     angle = np.random.uniform(-np.pi / 3, np.pi / 3)
-        #     self.params["direction"] = [
-        #         float(np.cos(angle)),
-        #         float(np.sin(angle)),
-        #         0.0,
-        #     ]
-        #     print(f"Direction: {self.params['direction']}")
-
-        else:
-            angle = np.random.uniform(-np.pi / 2, np.pi / 2)
-            self.params["direction"] = [
-                float(np.cos(angle)),
-                float(np.sin(angle)),
-                0.0,
-            ]
-            print(f"Direction: {self.params['direction']}")
+        # self.params["direction"] = [float(np.cos(angle)), float(np.sin(angle)), 0.0]
+        #
+        # print(f"[{self.reset_count}] Direction {self.params['direction']}  angle: {np.degrees(angle):.1f}°")
 
         self.step_count = 0
         self.trajectory_length = 0.0

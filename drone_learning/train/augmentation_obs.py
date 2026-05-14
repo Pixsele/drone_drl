@@ -7,7 +7,7 @@ from gymnasium import ObservationWrapper
 from depth_anything_v2.dpt import DepthAnythingV2
 
 class RgbToDepthWrapper(gym.ObservationWrapper):
-    def __init__(self, env, encoder = 'vits'):
+    def __init__(self, env, encoder='vits', output_size=(128, 128)):
         super().__init__(env)
 
         model_configs = {
@@ -17,22 +17,31 @@ class RgbToDepthWrapper(gym.ObservationWrapper):
             'vitg': {'encoder': 'vitg', 'features': 384, 'out_channels': [1536, 1536, 1536, 1536]}
         }
 
+        self.output_size = output_size
         self.model = DepthAnythingV2(**model_configs[encoder]).to('cuda').eval()
-        self.model.load_state_dict(torch.load(f'C:\Prog\drone_drl\depth_anything_v2\depth_anything_v2_{encoder}.pth', map_location='cpu'))
+        self.model.load_state_dict(torch.load(
+            rf'C:\Prog\drone_drl\depth_anything_v2\depth_anything_v2_{encoder}.pth',
+            map_location='cpu'
+        ))
 
-        self.observation_space = gym.spaces.Box(
-            low=0, high=255,
-            shape=(128, 128, 1),
-            dtype=np.uint8
-        )
+        h, w = output_size
+        self.observation_space = gym.spaces.Dict({
+            "image": gym.spaces.Box(low=0, high=255, shape=(h, w, 1), dtype=np.uint8),
+            **{k: v for k, v in env.observation_space.spaces.items() if k != "image"},
+        })
 
     def observation(self, obs):
         with torch.no_grad():
-            depth = self.model.infer_image(obs)  # HxW
+            depth = self.model.infer_image(obs["image"])
             depth = (depth - depth.min()) / (depth.max() - depth.min() + 1e-8)
             depth = (depth * 255).astype(np.uint8)
+
+            h, w = self.output_size
+            from PIL import Image
+            depth = np.array(Image.fromarray(depth).resize((w, h)))
             depth = depth[..., None]
-        return depth
+
+        return {"image": depth, **{k: v for k, v in obs.items() if k != "image"}}
 
 
 class RandomShiftWrapper(gym.ObservationWrapper):
