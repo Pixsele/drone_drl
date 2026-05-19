@@ -2,6 +2,7 @@ from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
 import torch
 import torch.nn as nn
 
+
 class QRExtractor(BaseFeaturesExtractor):
     def __init__(self, observation_space, cnn_output_dim=256, direction_output_dim=64):
         super().__init__(observation_space, features_dim=cnn_output_dim + direction_output_dim)

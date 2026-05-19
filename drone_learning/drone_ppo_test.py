@@ -4,8 +4,7 @@ import cv2
 from stable_baselines3 import PPO
 from stable_baselines3.common.vec_env import DummyVecEnv, VecTransposeImage
 
-from drone_learning.train.augmentation_obs import RandomShiftWrapper, SaltPepperWrapper, CutWrapper, \
-    GaussianNoiseWrapper, DepthQuantizationWrapper, DistortionWrapper, RgbToDepthWrapper
+from drone_learning.wrappers.augmentation_obs import DistortionWrapper, RgbToDepthWrapper
 from sim.reinforcement_learning.airgym.envs import AirSimDronePPOEnv
 
 

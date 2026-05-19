@@ -1,5 +1,9 @@
+import time
+
+import cv2
 import numpy as np
 
+from data_transfer.udp_sock import UEDataReceiverUDP, UEDataSenderUDP
 from envs import DroneDirectionBaseEnv
 
 from gymnasium import spaces
@@ -9,12 +13,18 @@ import sim.cosysairsim as airsim
 from pyzbar import pyzbar
 
 class DroneDirectionQREnv(DroneDirectionBaseEnv):
-    def __init__(self, ip_address, image_shape, params, run_name, camera_name = 0 ,eval=False, log_image=True, show_image=False):
+    def __init__(self, ip_address, image_shape, params, run_name, camera_name = 0 ,eval=False, log_image=True, show_image=True):
         super().__init__(ip_address, image_shape, params, run_name, camera_name, eval, log_image, show_image)
-        self.spawn_pose = airsim.Vector3r(0.0,0.0,-10.0)
+        self.spawn_pose = airsim.Vector3r(0.0,0.0,-7.5)
         self.start_pos = self.spawn_pose
         self.state["prev_delta_to_qr"] = np.zeros(3)
         self.state["last_qr_obs"] = np.array([0.0, 0.0, 0.0, 0.0], dtype=np.float32)
+
+        self.clientSock = UEDataReceiverUDP()
+
+        self.serverSock = UEDataSenderUDP()
+        self.serverSock.send_bool(True)
+        time.sleep(0.5)
 
 
     def _build_obs_space(self):
@@ -34,7 +44,7 @@ class DroneDirectionQREnv(DroneDirectionBaseEnv):
         })
         return space
 
-    def _detect_qr(self, image):
+    def _detect_qr(self, image, show_img=True):
         decoded = pyzbar.decode(image)
 
         if not decoded:
@@ -51,6 +61,17 @@ class DroneDirectionQREnv(DroneDirectionBaseEnv):
         dx = (cx_qr - w / 2) / (w / 2)
         dy = (cy_qr - h / 2) / (h / 2)
         bbox_size = (bw * bh) / (w * h)
+
+        if show_img:
+            vis = image.copy()
+            cv2.rectangle(vis, (x, y), (x + bw, y + bh), (0, 255, 0), 2)
+            cv2.circle(vis, (int(cx_qr), int(cy_qr)), 5, (0, 0, 255), -1)
+            cv2.circle(vis, (w // 2, h // 2), 5, (255, 0, 0), -1)
+            cv2.line(vis, (w // 2, h // 2), (int(cx_qr), int(cy_qr)), (255, 255, 0), 1)
+            cv2.putText(vis, f"dx={dx:.2f} dy={dy:.2f} s={bbox_size:.3f}",
+                        (10, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+            cv2.imshow("QR Detection", vis)
+            cv2.waitKey(1)
 
         self.logger.info(decoded)
         return np.array([dx, dy, bbox_size, 1.0], dtype=np.float32)
@@ -70,12 +91,10 @@ class DroneDirectionQREnv(DroneDirectionBaseEnv):
         return {"qr_pos": self.state["last_qr_obs"]}
 
     def _compute_reward(self):
+        # TODO kostil
+        data = self.clientSock.get_pos()
         qr_pose = self.client.simGetObjectPose("BP_Domain_QR0")
-        qr_pos = np.array([
-            qr_pose.position.x_val,
-            qr_pose.position.y_val,
-            qr_pose.position.z_val,
-        ])
+        qr_pos = np.array([data[0], data[1], qr_pose.position.z_val])
 
         drone_pos = np.array([
             self.state["position"].x_val,
@@ -118,6 +137,7 @@ class DroneDirectionQREnv(DroneDirectionBaseEnv):
         self.logger.debug(
             f"step={self.step_count} | "
             f"dist={dist:.2f} | "
+            f"start_dist={self.start_dist:.2f} | "
             f"qr_visible={qr_visible} | "
             f"progress={r_progress:+.3f} | "
             f"r_dist={r_dist:+.3f} | "
@@ -146,11 +166,18 @@ class DroneDirectionQREnv(DroneDirectionBaseEnv):
         self.state["prev_delta_to_qr"] = None
         self.state["last_qr_obs"] = np.array([0.0, 0.0, 0.0, 0.0], dtype=np.float32)
 
+        if self.reset_count >= self.params["qr_move_after_episodes"]:
+            self.serverSock.send_bool(True)
+        else:
+            self.serverSock.send_bool(False)
+        time.sleep(0.1)
+
         obs, info = super().reset(seed=seed, options=options)
 
+        data = self.clientSock.get_pos()
         qr_pose = self.client.simGetObjectPose("BP_Domain_QR0")
-        qr_pos = np.array([qr_pose.position.x_val, qr_pose.position.y_val, qr_pose.position.z_val])
+        qr_pos = np.array([data[0], data[1], qr_pose.position.z_val])
+
         drone_pos = np.array([self.state["position"].x_val, self.state["position"].y_val, self.state["position"].z_val])
         self.start_dist = np.linalg.norm(qr_pos - drone_pos)
-
         return obs, info

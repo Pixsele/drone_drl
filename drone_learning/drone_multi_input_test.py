@@ -1,13 +1,11 @@
 import time
 
-import cv2
 import numpy as np
 from stable_baselines3 import PPO
-from stable_baselines3.common.vec_env import DummyVecEnv, VecTransposeImage, SubprocVecEnv
+from stable_baselines3.common.vec_env import DummyVecEnv
 
-from drone_learning.train.augmentation_obs import RandomShiftWrapper, SaltPepperWrapper, CutWrapper, \
-    GaussianNoiseWrapper, DepthQuantizationWrapper, DistortionWrapper, RgbToDepthWrapper
-from sim.reinforcement_learning.airgym.envs import AirSimDronePPOEnv, AirSimDroneDirectionPPOEnv
+from drone_learning.wrappers.augmentation_obs import RgbToDepthWrapper
+from sim.reinforcement_learning.airgym.envs import AirSimDroneDirectionPPOEnv
 from other import DroneExtractor
 angle =  3 * np.pi / 2
 

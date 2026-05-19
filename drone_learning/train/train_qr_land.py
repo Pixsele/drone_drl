@@ -1,9 +1,7 @@
 from datetime import datetime
 
 from drone_learning.extractors.qr_extractor import QRExtractor
-from drone_learning.train.augmentation_obs import RgbToDepthWrapper
 from drone_learning.train.drone_train_base import DroneTrainBase
-
 from envs.drone_qr_env import DroneDirectionQREnv
 
 ppo_params = {
@@ -31,15 +29,17 @@ drone_params = {
 
     "dist_penalty": 0.05,
 
-    "collision_fine": 50.0,  # штраф за столкновение
+    "collision_fine": 100.0,  # штраф за столкновение
 
-    "land_threshold": 2.0,
+    "land_threshold": 0.5,
     "land_reward": 100.0,
 
-    "vx": 2.5,  #
-    "vy": 2.5,  #
+    "vx": 1.5,  #
+    "vy": 1.5,  #
     "vz": 1.0,  #
-    "max_steps": 70,  # максимум шагов за эпизод
+    "max_steps": 100,  # максимум шагов за эпизод
+
+    "qr_move_after_episodes": 250,
 }
 
 wrappers = [
@@ -47,7 +47,7 @@ wrappers = [
 ]
 
 if __name__ == "__main__":
-    run_name = f"QR_Land_v1_{datetime.now().strftime('%d_%m_%Y__%H-%M-%S')}"
+    run_name = f"Test_QR_Land_v2_RandomQrLocation_{datetime.now().strftime('%d_%m_%Y__%H-%M-%S')}"
 
     trainer = DroneTrainBase(
         run_name=run_name,

@@ -12,13 +12,9 @@ from stable_baselines3.common.callbacks import EvalCallback
 import gymnasium as gym
 from torch.utils.tensorboard import SummaryWriter
 
-from augmentation_obs import RandomShiftWrapper, SaltPepperWrapper, CutWrapper, RgbToDepthWrapper, GaussianNoiseWrapper, \
-    DepthQuantizationWrapper, DistortionWrapper
 from drone_learning.extractors.qr_extractor import QRExtractor
 from drone_learning.other import DroneExtractor
 from drone_learning.train.log_helpers import MetricsCallback, to_hparam
-from sim.reinforcement_learning.airgym.envs import AirSimDroneDirectionPPOEnv
-from envs.drone_env import DroneDirectionBaseEnv
 
 # ppo_params = {
 #     "total_timesteps": 100_000,         # кол-во шагов

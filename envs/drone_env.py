@@ -135,7 +135,7 @@ class DroneDirectionBaseEnv(AirSimEnv):
             self.logger.debug(f"Image saved to ./models/{self.run_name}/images/{self.step_count}.jpg")
 
         if self.show_image:
-            cv2.imshow(f"image_{self.step_count}", image)
+            cv2.imshow(f"image", image)
             cv2.waitKey(1)
 
         self.drone_state = self.client.getMultirotorState(vehicle_name=self.drone_name)
@@ -253,14 +253,15 @@ class DroneDirectionBaseEnv(AirSimEnv):
         super().reset(seed=seed, options=options)
         self.client.reset()
 
+        self._setup_flight()
+
+        time.sleep(0.2)
+
         self.client.simSetVehiclePose(
             airsim.Pose(self.spawn_pose, airsim.Quaternionr()),
             ignore_collision=True,
             vehicle_name=self.drone_name
         )
-
-        time.sleep(0.2)
-        self._setup_flight()
 
         self.reset_count += 1
         r = self.reset_count

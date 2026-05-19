@@ -8,9 +8,9 @@ from stable_baselines3 import PPO
 from stable_baselines3.common.callbacks import EvalCallback
 from stable_baselines3.common.logger import configure
 from stable_baselines3.common.monitor import Monitor
-from stable_baselines3.common.vec_env import VecTransposeImage, SubprocVecEnv, VecNormalize, DummyVecEnv
+from stable_baselines3.common.vec_env import VecTransposeImage, VecNormalize, DummyVecEnv
 
-from drone_learning.train.log_helpers import MetricsCallback, to_hparam
+from drone_learning.logging_config import MetricsCallback, to_hparam
 
 
 class DroneTrainBase:
@@ -47,7 +47,7 @@ class DroneTrainBase:
             return env
 
         self.env = VecTransposeImage(
-            SubprocVecEnv([lambda: _make(eval=False)])
+            DummyVecEnv([lambda: _make(eval=False)])
         )
         self.env = VecNormalize(self.env, norm_obs=False, norm_reward=True, clip_reward=10.0)
 
