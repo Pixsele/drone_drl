@@ -1,0 +1,35 @@
+2026-05-18 01:23:57 | INFO | drone_env.py:279 | drone=SimpleFlight | eval=False | reset_count=  1 | direction=[1.0, 0.0, 0.0] | 
+2026-05-18 01:23:57 | DEBUG | drone_env.py:135 | Image saved to ./models/Test_QR_Land_v2_RandomQrLocation_18_05_2026__01-23-51/images/0.jpg
+2026-05-18 01:23:57 | DEBUG | drone_env.py:135 | Image saved to ./models/Test_QR_Land_v2_RandomQrLocation_18_05_2026__01-23-51/images/0.jpg
+2026-05-18 01:23:58 | DEBUG | drone_qr_env.py:137 | step=0 | dist=2.00 | start_dist=10.60 | qr_visible=0.0 | progress=+0.000 | r_dist=-0.000 | r_visible=-1.000 | total=-101.000 | done=True | info={'success': False, 'collision': True}
+2026-05-18 01:23:58 | INFO | drone_env.py:279 | drone=SimpleFlight | eval=False | reset_count=  2 | direction=[1.0, 0.0, 0.0] | 
+2026-05-18 01:23:58 | DEBUG | drone_env.py:135 | Image saved to ./models/Test_QR_Land_v2_RandomQrLocation_18_05_2026__01-23-51/images/0.jpg
+2026-05-18 01:23:58 | DEBUG | drone_env.py:135 | Image saved to ./models/Test_QR_Land_v2_RandomQrLocation_18_05_2026__01-23-51/images/0.jpg
+2026-05-18 01:23:58 | DEBUG | drone_qr_env.py:137 | step=0 | dist=9.62 | start_dist=11.01 | qr_visible=0.0 | progress=+0.000 | r_dist=-0.000 | r_visible=-1.000 | total=-1.000 | done=False | info={}
+2026-05-18 01:23:58 | DEBUG | drone_qr_env.py:137 | step=1 | dist=9.44 | start_dist=11.01 | qr_visible=0.0 | progress=+0.904 | r_dist=-0.000 | r_visible=-1.000 | total=-0.096 | done=False | info={}
+2026-05-18 01:23:58 | DEBUG | drone_qr_env.py:137 | step=2 | dist=9.23 | start_dist=11.01 | qr_visible=0.0 | progress=+1.054 | r_dist=-0.000 | r_visible=-1.000 | total=+0.054 | done=False | info={}
+2026-05-18 01:23:59 | DEBUG | drone_qr_env.py:137 | step=3 | dist=9.23 | start_dist=11.01 | qr_visible=0.0 | progress=+0.013 | r_dist=-0.000 | r_visible=-1.000 | total=-0.987 | done=False | info={}
+2026-05-18 01:23:59 | DEBUG | drone_qr_env.py:137 | step=4 | dist=8.99 | start_dist=11.01 | qr_visible=0.0 | progress=+1.175 | r_dist=-0.000 | r_visible=-1.000 | total=+0.175 | done=False | info={}
+2026-05-18 01:23:59 | DEBUG | drone_qr_env.py:137 | step=5 | dist=9.09 | start_dist=11.01 | qr_visible=0.0 | progress=-0.502 | r_dist=-0.000 | r_visible=-1.000 | total=-1.502 | done=False | info={}
+2026-05-18 01:23:59 | DEBUG | drone_qr_env.py:137 | step=6 | dist=8.84 | start_dist=11.01 | qr_visible=0.0 | progress=+1.235 | r_dist=-0.000 | r_visible=-1.000 | total=+0.235 | done=False | info={}
+2026-05-18 01:23:59 | DEBUG | drone_qr_env.py:137 | step=7 | dist=8.87 | start_dist=11.01 | qr_visible=0.0 | progress=-0.149 | r_dist=-0.000 | r_visible=-1.000 | total=-1.149 | done=False | info={}
+2026-05-18 01:23:59 | DEBUG | drone_qr_env.py:137 | step=8 | dist=8.89 | start_dist=11.01 | qr_visible=0.0 | progress=-0.070 | r_dist=-0.000 | r_visible=-1.000 | total=-1.070 | done=False | info={}
+2026-05-18 01:23:59 | DEBUG | drone_qr_env.py:137 | step=9 | dist=8.63 | start_dist=11.01 | qr_visible=0.0 | progress=+1.278 | r_dist=-0.000 | r_visible=-1.000 | total=+0.278 | done=False | info={}
+2026-05-18 01:24:00 | DEBUG | drone_qr_env.py:137 | step=10 | dist=8.64 | start_dist=11.01 | qr_visible=0.0 | progress=-0.064 | r_dist=-0.000 | r_visible=-1.000 | total=-1.064 | done=False | info={}
+2026-05-18 01:24:00 | DEBUG | drone_qr_env.py:137 | step=11 | dist=8.90 | start_dist=11.01 | qr_visible=0.0 | progress=-1.277 | r_dist=-0.000 | r_visible=-1.000 | total=-2.277 | done=False | info={}
+2026-05-18 01:24:00 | DEBUG | drone_qr_env.py:137 | step=12 | dist=8.97 | start_dist=11.01 | qr_visible=0.0 | progress=-0.341 | r_dist=-0.000 | r_visible=-1.000 | total=-1.341 | done=False | info={}
+2026-05-18 01:24:00 | DEBUG | drone_qr_env.py:137 | step=13 | dist=9.00 | start_dist=11.01 | qr_visible=0.0 | progress=-0.171 | r_dist=-0.000 | r_visible=-1.000 | total=-1.171 | done=False | info={}
+2026-05-18 01:24:00 | DEBUG | drone_qr_env.py:137 | step=14 | dist=9.30 | start_dist=11.01 | qr_visible=0.0 | progress=-1.486 | r_dist=-0.000 | r_visible=-1.000 | total=-2.486 | done=False | info={}
+2026-05-18 01:24:00 | DEBUG | drone_qr_env.py:137 | step=15 | dist=9.18 | start_dist=11.01 | qr_visible=0.0 | progress=+0.581 | r_dist=-0.000 | r_visible=-1.000 | total=-0.419 | done=False | info={}
+2026-05-18 01:24:01 | DEBUG | drone_qr_env.py:137 | step=16 | dist=9.32 | start_dist=11.01 | qr_visible=0.0 | progress=-0.699 | r_dist=-0.000 | r_visible=-1.000 | total=-1.699 | done=False | info={}
+2026-05-18 01:24:01 | DEBUG | drone_qr_env.py:137 | step=17 | dist=9.63 | start_dist=11.01 | qr_visible=0.0 | progress=-1.531 | r_dist=-0.000 | r_visible=-1.000 | total=-2.531 | done=False | info={}
+2026-05-18 01:24:01 | DEBUG | drone_qr_env.py:137 | step=18 | dist=9.42 | start_dist=11.01 | qr_visible=0.0 | progress=+1.035 | r_dist=-0.000 | r_visible=-1.000 | total=+0.035 | done=False | info={}
+2026-05-18 01:24:01 | DEBUG | drone_qr_env.py:137 | step=19 | dist=9.22 | start_dist=11.01 | qr_visible=0.0 | progress=+1.029 | r_dist=-0.000 | r_visible=-1.000 | total=+0.029 | done=False | info={}
+2026-05-18 01:24:01 | DEBUG | drone_qr_env.py:137 | step=20 | dist=9.61 | start_dist=11.01 | qr_visible=0.0 | progress=-1.961 | r_dist=-0.000 | r_visible=-1.000 | total=-2.961 | done=False | info={}
+2026-05-18 01:24:01 | DEBUG | drone_qr_env.py:137 | step=21 | dist=9.47 | start_dist=11.01 | qr_visible=0.0 | progress=+0.678 | r_dist=-0.000 | r_visible=-1.000 | total=-0.322 | done=False | info={}
+2026-05-18 01:24:01 | DEBUG | drone_qr_env.py:137 | step=22 | dist=9.30 | start_dist=11.01 | qr_visible=0.0 | progress=+0.848 | r_dist=-0.000 | r_visible=-1.000 | total=-0.152 | done=False | info={}
+2026-05-18 01:24:02 | DEBUG | drone_qr_env.py:137 | step=23 | dist=9.23 | start_dist=11.01 | qr_visible=0.0 | progress=+0.364 | r_dist=-0.000 | r_visible=-1.000 | total=-0.636 | done=False | info={}
+2026-05-18 01:24:02 | DEBUG | drone_qr_env.py:137 | step=24 | dist=9.03 | start_dist=11.01 | qr_visible=0.0 | progress=+0.982 | r_dist=-0.000 | r_visible=-1.000 | total=-0.018 | done=False | info={}
+2026-05-18 01:24:02 | DEBUG | drone_qr_env.py:137 | step=25 | dist=8.94 | start_dist=11.01 | qr_visible=0.0 | progress=+0.467 | r_dist=-0.000 | r_visible=-1.000 | total=-0.533 | done=False | info={}
+2026-05-18 01:24:02 | DEBUG | drone_qr_env.py:137 | step=26 | dist=9.05 | start_dist=11.01 | qr_visible=0.0 | progress=-0.550 | r_dist=-0.000 | r_visible=-1.000 | total=-1.550 | done=False | info={}
+2026-05-18 01:24:02 | DEBUG | drone_qr_env.py:137 | step=27 | dist=9.00 | start_dist=11.01 | qr_visible=0.0 | progress=+0.254 | r_dist=-0.000 | r_visible=-1.000 | total=-0.746 | done=False | info={}
